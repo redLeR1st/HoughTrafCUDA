@@ -18,20 +18,20 @@ using namespace std;
 #define M_PI 3.14159265358979323846   // pi
 #define DEG2RAD (M_PI/180.0f)
 
-__global__ void rippleKernel(unsigned char* result, unsigned int* accum, int w, int h, int w_accum, int h_accum, double hough_h);
-__global__ void getLines(unsigned int* accum, int w_accum, int h_accum, int* dev_points, int* max);
-__global__ void plotLines(unsigned char* result, int w, int h, int* points);
-__global__ void findMax(unsigned int* accum, int w_accum, int h_accum, int* dev_points, int* max);
+__global__ void computeAccum(unsigned char* result, unsigned char* bw_image, unsigned int* accum, int w, int h, int w_accum, int h_accum, double hough_h);
+__global__ void findMaxInAccum(unsigned int* accum, int w_accum, int h_accum, int* dev_points, int* max);
+__global__ void plotLines(unsigned char* result, int w, int h, int* points, unsigned char b, unsigned char g, unsigned char r);
+__global__ void getLineFromAccum(unsigned int* accum, int w_accum, int h_accum, int* dev_points, int* max);
+__global__ void drawAccum(unsigned int* accum, unsigned char* image_accum, int w_accum, int h_accum, int* max);
 
 int main(int argc, char** argv)
 {
+	int number_of_lines = std::atoi(argv[2]);
 
 	int _img_w;
 	int _img_h;
 
 	unsigned char* result_temp = new unsigned char[2048 * 2048 * 4];
-
-	std::cout << "DEBUG0" << std::endl;
 	
 	char* name_of_the_input = argv[1];
 	// READING STUFF
@@ -39,19 +39,23 @@ int main(int argc, char** argv)
 
 
 	unsigned char* result = new unsigned char[_img_w * _img_h * 4];
-
-
-	int N = _img_h > _img_w ? _img_h : _img_w;
-
 	unsigned char* dev_result;
 
+	unsigned char* bw_image = new unsigned char[_img_w * _img_h * 4];
+	unsigned char* dev_bw_image;
+
 	int w_accum = 180;
+
+	int N = _img_h > _img_w ? _img_h : _img_w;
 
 	double hough_h = ((sqrt(2.0) * (double)N) / 2.0);
 	int h_accum = hough_h * 2.0; // -r -> +r 
 
 	unsigned int* accum = new unsigned int[w_accum * h_accum];
 	unsigned int* dev_accum;
+	unsigned char* image_accum = new unsigned char[w_accum * h_accum * 4];
+	unsigned char* dev_image_accum;
+
 
 	int* points = new int[4];
 	int* dev_points;
@@ -61,14 +65,17 @@ int main(int argc, char** argv)
 
 	cudaMalloc((void**)&dev_result, _img_h * _img_w * 4 * sizeof(unsigned char));
 
+	cudaMalloc((void**)&dev_bw_image, _img_h * _img_w * 4 * sizeof(unsigned char));
+
 	cudaMalloc((void**)&dev_accum, w_accum * h_accum * sizeof(unsigned int));
 	cudaMemset(dev_accum, 0, w_accum * h_accum * sizeof(unsigned int));
+
+	cudaMalloc((void**)&dev_image_accum, w_accum * h_accum * 4 * sizeof(unsigned char));
 
 	cudaMalloc((void**)&dev_points, 4 * sizeof(int));
 	cudaMemset(dev_points, 0, 4 * sizeof(int));
 
 	cudaMalloc((void**)&dev_max, sizeof(int));
-	cudaMemset(dev_max, -999999, sizeof(int));
 
 	dim3 blockDim = dim3(BLOCKDIM, BLOCKDIM, 1);
 	dim3 gridDim = dim3((N + BLOCKDIM - 1) / BLOCKDIM, (N + BLOCKDIM - 1) / BLOCKDIM, 1);
@@ -76,50 +83,88 @@ int main(int argc, char** argv)
 	
 	
 	cudaMemcpy(dev_result, result_temp, _img_w * _img_h * 4 * sizeof(unsigned char), cudaMemcpyHostToDevice);
-	std::cout << "DEBUG1" << std::endl;
+
+	unsigned char b = 50;
+	unsigned char g = 50;
+	unsigned char r = 255;
+
 	// ALGORITHM
-	rippleKernel << <gridDim, blockDim >> > (dev_result, dev_accum, _img_w, _img_h, w_accum, h_accum, hough_h);
-	getLines << <gridDim, blockDim >> > (dev_accum, w_accum, h_accum, dev_points, dev_max);
-	findMax << <gridDim, blockDim >> > (dev_accum, w_accum, h_accum, dev_points, dev_max);
+	int threshlod = 20;
+	computeAccum << <gridDim, blockDim >> > (dev_result, dev_bw_image, dev_accum, _img_w, _img_h, w_accum, h_accum, hough_h); // count the accum image
+	for (int i = 0; i < number_of_lines; i++) {
+		cudaMemset(dev_max, -999999, sizeof(int));
+		findMaxInAccum << <gridDim, blockDim >> > (dev_accum, w_accum, h_accum, dev_points, dev_max);
 
-	cudaMemcpy(points, dev_points, 4 * sizeof(int), cudaMemcpyDeviceToHost);
+		if (i == 0) {
+			drawAccum << <gridDim, blockDim >> > (dev_accum, dev_image_accum, w_accum, h_accum, dev_max);
+			cudaMemcpy(image_accum, dev_image_accum, w_accum * h_accum * 4 * sizeof(unsigned char), cudaMemcpyDeviceToHost);
+			char* accum_name = "0_accum.png";
+			accum_name[0] = '0' + i;
+			writeRGBImageToFile(accum_name, image_accum, w_accum, h_accum);
+		}
+		
+		getLineFromAccum << <gridDim, blockDim >> > (dev_accum, w_accum, h_accum, dev_points, dev_max);
 
-	int x1, y1, x2, y2;
-	x1 = y1 = x2 = y2 = 0;
-	int x = points[0];
-	int y = points[1];
+		cudaMemcpy(max, dev_max, sizeof(int), cudaMemcpyDeviceToHost);
+		std::cout << "max: " << (*max) << std::endl;
 
-	if (x >= 45 && x <= 135)
-	{
-		//y = (r - x cos(t)) / sin(t)  
-		x1 = 0;
-		y1 = ((double)(y - (h_accum / 2)) - ((x1 - (_img_w / 2)) * cos(x * DEG2RAD))) / sin(x * DEG2RAD) + (_img_h / 2);
-		x2 = _img_w - 0;
-		y2 = ((double)(y - (h_accum / 2)) - ((x2 - (_img_w / 2)) * cos(x * DEG2RAD))) / sin(x * DEG2RAD) + (_img_h / 2);
+		if ((*max) < threshlod) {
+			std::cout << "no more line above the threshold: " << threshlod << std::endl;
+			break;
+		}
+
+		cudaMemcpy(points, dev_points, 4 * sizeof(int), cudaMemcpyDeviceToHost);
+
+		int x1, y1, x2, y2;
+		x1 = y1 = x2 = y2 = 0;
+		int x = points[0];
+		int y = points[1];
+
+		if (x >= 45 && x <= 135)
+		{
+			//y = (r - x cos(t)) / sin(t)  
+			x1 = 0;
+			y1 = ((double)(y - (h_accum / 2)) - ((x1 - (_img_w / 2)) * cos(x * DEG2RAD))) / sin(x * DEG2RAD) + (_img_h / 2);
+			x2 = _img_w - 0;
+			y2 = ((double)(y - (h_accum / 2)) - ((x2 - (_img_w / 2)) * cos(x * DEG2RAD))) / sin(x * DEG2RAD) + (_img_h / 2);
+		}
+		else
+		{
+			//x = (r - y sin(t)) / cos(t);  
+			y1 = 0;
+			x1 = ((double)(y - (h_accum / 2)) - ((y1 - (_img_h / 2)) * sin(x * DEG2RAD))) / cos(x * DEG2RAD) + (_img_w / 2);
+			y2 = _img_h - 0;
+			x2 = ((double)(y - (h_accum / 2)) - ((y2 - (_img_h / 2)) * sin(x * DEG2RAD))) / cos(x * DEG2RAD) + (_img_w / 2);
+		}
+		points[0] = x1;
+		points[1] = y1;
+		points[2] = x2;
+		points[3] = y2;
+
+		if (b + 30 < 255 && r - 20 >= 0) {
+			b += 30;
+			r -= 20;
+		}
+
+		cudaMemcpy(dev_points, points, 4 * sizeof(int), cudaMemcpyHostToDevice);
+		plotLines << <gridDim, blockDim >> > (dev_result, _img_w, _img_h, dev_points, b, g, r);
+		plotLines << <gridDim, blockDim >> > (dev_bw_image, _img_w, _img_h, dev_points, b, g, r);
+
+		
+
+		for (int i = 0; i < 4; i++) {
+			std::cout << points[i] << " ";
+		}
+		std::cout << "\n";
 	}
-	else
-	{
-		//x = (r - y sin(t)) / cos(t);  
-		y1 = 0;
-		x1 = ((double)(y - (h_accum / 2)) - ((y1 - (_img_h / 2)) * sin(x * DEG2RAD))) / cos(x * DEG2RAD) + (_img_w / 2);
-		y2 = _img_h - 0;
-		x2 = ((double)(y - (h_accum / 2)) - ((y2 - (_img_h / 2)) * sin(x * DEG2RAD))) / cos(x * DEG2RAD) + (_img_w / 2);
-	}
-	points[0] = x1;
-	points[1] = y1;
-	points[2] = x2;
-	points[3] = y2;
-
-	cudaMemcpy(dev_points, points, 4 * sizeof(int), cudaMemcpyHostToDevice);
-	plotLines << <gridDim, blockDim >> > (dev_result, _img_w, _img_h, dev_points);
 
 	// WRITE OUT STUFF
 	cudaMemcpy(result, dev_result, _img_h * _img_w * 4 * sizeof(unsigned char), cudaMemcpyDeviceToHost);
 	writeRGBImageToFile("result.png", result, _img_w, _img_h);
-	
-	cudaMemcpy(max, dev_max, sizeof(int), cudaMemcpyDeviceToHost);
-	
-	std::cout << "max: " << (*max) << std::endl;
+
+	// WRITE OUT STUFF
+	cudaMemcpy(bw_image, dev_bw_image, _img_h * _img_w * 4 * sizeof(unsigned char), cudaMemcpyDeviceToHost);
+	writeRGBImageToFile("result_bw.png", bw_image, _img_w, _img_h);
 
 	// write accum to a file
 	cudaMemcpy(accum, dev_accum, w_accum * h_accum * sizeof(unsigned int), cudaMemcpyDeviceToHost);
@@ -143,21 +188,10 @@ int main(int argc, char** argv)
 
 
 
-	for (int i = 0; i < 4; i++) {
-		std::cout << points[i] << " ";
-	}
-	std::cout << "\n";
-
-	//cudaMemcpy(accum, dev_accum, w_accum * h_accum * sizeof(unsigned char), cudaMemcpyDeviceToHost);
-	//writeRGBImageToFile("accum.png", accum, w_accum, h_accum);
-
-	//writeRGBImageToFile("result.png", result, N, N);
-	
-
 	return 0;
 }
 
-__global__ void plotLines(unsigned char* result, int w, int h, int* points) {
+__global__ void plotLines(unsigned char* result, int w, int h, int* points, unsigned char blue, unsigned char green, unsigned char read) {
 
 	int x = blockDim.x * blockIdx.x + threadIdx.x;
 	int y = blockDim.y * blockIdx.y + threadIdx.y;
@@ -180,9 +214,9 @@ __global__ void plotLines(unsigned char* result, int w, int h, int* points) {
 	double diff = a * x + b * y + c;
 
 	if (-10 < diff && diff < 500) {
-		result[tid * 4 + 0] = 255;
-		result[tid * 4 + 1] = 0;
-		result[tid * 4 + 2] = 0;
+		result[tid * 4 + 0] = blue;
+		result[tid * 4 + 1] = green;
+		result[tid * 4 + 2] = read;
 		result[tid * 4 + 3] = 255;
 	}
 
@@ -190,7 +224,7 @@ __global__ void plotLines(unsigned char* result, int w, int h, int* points) {
 }
 
 
-__global__ void findMax(unsigned int* accum, int w_accum, int h_accum, int* dev_points, int* max) {
+__global__ void getLineFromAccum(unsigned int* accum, int w_accum, int h_accum, int* dev_points, int* max) {
 	int x = blockDim.x * blockIdx.x + threadIdx.x;
 	int y = blockDim.y * blockIdx.y + threadIdx.y;
 
@@ -203,6 +237,18 @@ __global__ void findMax(unsigned int* accum, int w_accum, int h_accum, int* dev_
 	if (max[0] == (int)accum[tid]) {
 		atomicExch(&dev_points[0], x);
 		atomicExch(&dev_points[1], y);
+		// DELETE THE LINE FROM ACCU
+		
+		int filter_size = 30;
+		for (int i = x - filter_size / 2; i < x + filter_size / 2; i++) {
+			for (int j = y - filter_size / 2; j < y + filter_size / 2; j++) {
+				if (i < w_accum && j < h_accum) {
+					int tid_temp = j * w_accum + i;
+					accum[tid_temp] = -1;
+				}
+			}
+		}
+
 	}
 	
 	//atomicExch(&temp_max, max[0]);
@@ -218,7 +264,7 @@ __global__ void findMax(unsigned int* accum, int w_accum, int h_accum, int* dev_
 	return;
 }
 
-__global__ void getLines(unsigned int* accum, int w_accum, int h_accum, int* dev_points, int* max)
+__global__ void findMaxInAccum(unsigned int* accum, int w_accum, int h_accum, int* dev_points, int* max)
 {
 
 	int x = blockDim.x * blockIdx.x + threadIdx.x;
@@ -247,7 +293,7 @@ __global__ void getLines(unsigned int* accum, int w_accum, int h_accum, int* dev
 	return;
 }
 
-__global__ void rippleKernel(unsigned char* result, unsigned int* accum, int w, int h, int w_accum, int h_accum, double hough_h)
+__global__ void computeAccum(unsigned char* result, unsigned char* bw_image, unsigned int* accum, int w, int h, int w_accum, int h_accum, double hough_h)
 {
 	int x = blockDim.x * blockIdx.x + threadIdx.x;
 	int y = blockDim.y * blockIdx.y + threadIdx.y;
@@ -267,165 +313,48 @@ __global__ void rippleKernel(unsigned char* result, unsigned int* accum, int w, 
 			//accum[(int)((round(r + hough_h) * 180.0)) + t]++;
 			atomicAdd(&accum[(int)((round(r + hough_h) * 180.0)) + t], 1);
 		}
-
-		
-		//result[tid * 4 + 1] = 0;
-		//result[tid * 4 + 2] = 0;
-		//result[tid * 4 + 3] = 255;
+		bw_image[tid * 4 + 0] = 255;
+		bw_image[tid * 4 + 1] = 255;
+		bw_image[tid * 4 + 2] = 255;
+		bw_image[tid * 4 + 3] = 255;
+	}
+	else {
+		bw_image[tid * 4 + 0] = 0;
+		bw_image[tid * 4 + 1] = 0;
+		bw_image[tid * 4 + 2] = 0;
+		bw_image[tid * 4 + 3] = 255;
 	}
 	
-	/*
-	float dist = sqrtf((x - w / 2.0f) * (x - w / 2.0f) + (y - h / 2.0f) * (y - h / 2.0f));
-	float value = (cosf(dist / waveLength * CUDART_PI_F * 2) + 1) * 127;
 
-	if (x < w && y < h)
-	{
-		result[tid * 4] = value;
-		result[tid * 4 + 1] = value;
-		result[tid * 4 + 2] = value;
-		result[tid * 4 + 3] = 255;
-	}
-	*/
 	return;
 }
 
+__global__ void drawAccum(unsigned int* accum, unsigned char* image_accum, int w_accum, int h_accum, int* max) {
+	int x = blockDim.x * blockIdx.x + threadIdx.x;
+	int y = blockDim.y * blockIdx.y + threadIdx.y;
 
+	int tid = y * w_accum + x;
 
+	if (x >= w_accum || y >= h_accum)
+		return;
+	int pixel_value = 0;
+	if (!accum[tid] == 0) {
+		image_accum[tid * 4 + 0] = (unsigned char)((*max) / accum[tid]) * 255;
+		image_accum[tid * 4 + 1] = (unsigned char)((*max) / accum[tid]) * 255;
+		image_accum[tid * 4 + 2] = (unsigned char)((*max) / accum[tid]) * 255;
+		image_accum[tid * 4 + 3] = 255;
+	}
+	else if (accum[tid] == -1) {
+		image_accum[tid * 4 + 0] = 255;
+		image_accum[tid * 4 + 1] = (unsigned char)((*max) / accum[tid]) * 255;
+		image_accum[tid * 4 + 2] = (unsigned char)((*max) / accum[tid]) * 255;
+		image_accum[tid * 4 + 3] = 255;
+	}
+	else {
+		image_accum[tid * 4 + 0] = 0;
+		image_accum[tid * 4 + 1] = 0;
+		image_accum[tid * 4 + 2] = 0;
+		image_accum[tid * 4 + 3] = 255;
+	}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/*#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
-
-#include <stdio.h>
-
-cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
-
-__global__ void addKernel(int *c, const int *a, const int *b)
-{
-    int i = threadIdx.x;
-    c[i] = a[i] + b[i];
 }
-
-int main()
-{
-    const int arraySize = 5;
-    const int a[arraySize] = { 1, 2, 3, 4, 5 };
-    const int b[arraySize] = { 10, 20, 30, 40, 50 };
-    int c[arraySize] = { 0 };
-
-    // Add vectors in parallel.
-    cudaError_t cudaStatus = addWithCuda(c, a, b, arraySize);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "addWithCuda failed!");
-        return 1;
-    }
-
-    printf("{1,2,3,4,5} + {10,20,30,40,50} = {%d,%d,%d,%d,%d}\n",
-        c[0], c[1], c[2], c[3], c[4]);
-
-    // cudaDeviceReset must be called before exiting in order for profiling and
-    // tracing tools such as Nsight and Visual Profiler to show complete traces.
-    cudaStatus = cudaDeviceReset();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceReset failed!");
-        return 1;
-    }
-
-    return 0;
-}
-
-// Helper function for using CUDA to add vectors in parallel.
-cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size)
-{
-    int *dev_a = 0;
-    int *dev_b = 0;
-    int *dev_c = 0;
-    cudaError_t cudaStatus;
-
-    // Choose which GPU to run on, change this on a multi-GPU system.
-    cudaStatus = cudaSetDevice(0);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
-        goto Error;
-    }
-
-    // Allocate GPU buffers for three vectors (two input, one output)    .
-    cudaStatus = cudaMalloc((void**)&dev_c, size * sizeof(int));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
-        goto Error;
-    }
-
-    cudaStatus = cudaMalloc((void**)&dev_a, size * sizeof(int));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
-        goto Error;
-    }
-
-    cudaStatus = cudaMalloc((void**)&dev_b, size * sizeof(int));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
-        goto Error;
-    }
-
-    // Copy input vectors from host memory to GPU buffers.
-    cudaStatus = cudaMemcpy(dev_a, a, size * sizeof(int), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        goto Error;
-    }
-
-    cudaStatus = cudaMemcpy(dev_b, b, size * sizeof(int), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        goto Error;
-    }
-
-    // Launch a kernel on the GPU with one thread for each element.
-    addKernel<<<1, size>>>(dev_c, dev_a, dev_b);
-
-    // Check for any errors launching the kernel
-    cudaStatus = cudaGetLastError();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-        goto Error;
-    }
-    
-    // cudaDeviceSynchronize waits for the kernel to finish, and returns
-    // any errors encountered during the launch.
-    cudaStatus = cudaDeviceSynchronize();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
-        goto Error;
-    }
-
-    // Copy output vector from GPU buffer to host memory.
-    cudaStatus = cudaMemcpy(c, dev_c, size * sizeof(int), cudaMemcpyDeviceToHost);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        goto Error;
-    }
-
-Error:
-    cudaFree(dev_c);
-    cudaFree(dev_a);
-    cudaFree(dev_b);
-    
-    return cudaStatus;
-}
-*/

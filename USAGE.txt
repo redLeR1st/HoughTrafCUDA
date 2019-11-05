@@ -1,0 +1,12 @@
+GITHUB: https://github.com/redLeR1st/HoughTrafCUDA
+
+A futatható állomány, a következő útvonalon érhető el:
+/x64/Release (https://github.com/redLeR1st/HoughTrafCUDA/tree/master/x64/Release)
+Használat:
+Hough.exe <INPUT_IMAGE_NAME> <NUMBER_OF_OF_LINES_TO_SEARCH>
+pl.: Hough.exe lena.png 4
+
+Kimenet:
+result.png -> eredmény
+result_bw.png -> küszöbölt képen látható eredmény
+0_accum.png -> accumulátor kép

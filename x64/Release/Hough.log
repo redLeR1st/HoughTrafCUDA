@@ -1,36 +1,34 @@
 ﻿  Compiling CUDA source file kernel.cu...
   
   C:\UNI\MSc\3szemeszter\gpgpu\kodprog\Hough>"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\bin\nvcc.exe" -gencode=arch=compute_35,code=\"sm_35,compute_35\" --use-local-env -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.23.28105\bin\HostX86\x64" -x cu  -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\include" -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\include"     --keep-dir x64\Release -maxrregcount=0  --machine 64 --compile -cudart static     -DWIN32 -DWIN64 -DNDEBUG -D_CONSOLE -D_MBCS -Xcompiler "/EHsc /W3 /nologo /O2 /Fdx64\Release\vc142.pdb /FS /Zi  /MD " -o x64\Release\kernel.cu.obj "C:\UNI\MSc\3szemeszter\gpgpu\kodprog\Hough\kernel.cu" 
-C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(101): warning : conversion from a string literal to "char *" is deprecated
+C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(206): warning : conversion from a string literal to "char *" is deprecated
   
-C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(163): warning : conversion from a string literal to "char *" is deprecated
+C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(210): warning : conversion from a string literal to "char *" is deprecated
   
-C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(167): warning : conversion from a string literal to "char *" is deprecated
+C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(116): warning : variable "g" was declared but never referenced
   
-C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(247): warning : integer conversion resulted in a change of sign
+C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(290): warning : integer conversion resulted in a change of sign
   
-C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(236): warning : variable "temp_max" was declared but never referenced
+C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(279): warning : variable "temp_max" was declared but never referenced
   
-C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(347): warning : integer conversion resulted in a change of sign
+C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(375): warning : integer conversion resulted in a change of sign
   
-C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(340): warning : variable "pixel_value" was declared but never referenced
+C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(368): warning : variable "pixel_value" was declared but never referenced
   
-C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(101): warning : conversion from a string literal to "char *" is deprecated
+C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(206): warning : conversion from a string literal to "char *" is deprecated
   
-C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(163): warning : conversion from a string literal to "char *" is deprecated
+C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(210): warning : conversion from a string literal to "char *" is deprecated
   
-C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(167): warning : conversion from a string literal to "char *" is deprecated
+C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(290): warning : integer conversion resulted in a change of sign
   
-C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(247): warning : integer conversion resulted in a change of sign
-  
-C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(347): warning : integer conversion resulted in a change of sign
+C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(375): warning : integer conversion resulted in a change of sign
   
   kernel.cu
-C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(52): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
-C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(127): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
-C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(129): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
-C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(135): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
-C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(137): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
+C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(55): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(165): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
+C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(167): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
+C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(173): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
+C:/UNI/MSc/3szemeszter/gpgpu/kodprog/Hough/kernel.cu(175): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
      Creating library C:\UNI\MSc\3szemeszter\gpgpu\kodprog\Hough\x64\Release\Hough.lib and object C:\UNI\MSc\3szemeszter\gpgpu\kodprog\Hough\x64\Release\Hough.exp
   LINK : /LTCG specified but no code generation required; remove /LTCG from the link command line to improve linker performance
   Hough.vcxproj -> C:\UNI\MSc\3szemeszter\gpgpu\kodprog\Hough\x64\Release\Hough.exe

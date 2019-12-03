@@ -26,6 +26,7 @@ __global__ void drawAccum(unsigned int* accum, unsigned char* image_accum, int w
 
 int main(int argc, char** argv)
 {
+
 	int number_of_lines = std::atoi(argv[2]);
 
 	int _img_w;
@@ -34,6 +35,8 @@ int main(int argc, char** argv)
 	unsigned char* result_temp = new unsigned char[2048 * 2048 * 4];
 	
 	char* name_of_the_input = argv[1];
+	//cudaHostAlloc(&result_temp, sizeof(unsigned char) * 2048 * 2048 * 4, cudaHostAllocMapped);
+	//cudaHostRegister(&result_temp, sizeof(unsigned char) * 2048 * 2048 * 4, cudaHostRegisterDefault);
 	// READING STUFF
 	readRGBImageFromFile(name_of_the_input, result_temp, _img_w, _img_h);
 
@@ -49,7 +52,7 @@ int main(int argc, char** argv)
 	int N = _img_h > _img_w ? _img_h : _img_w;
 
 	double hough_h = ((sqrt(2.0) * (double)N) / 2.0);
-	int h_accum = hough_h * 2.0; // -r -> +r 
+	int h_accum = hough_h * 2.0; 
 
 	unsigned int* accum = new unsigned int[w_accum * h_accum];
 	unsigned int* dev_accum;
@@ -62,6 +65,30 @@ int main(int argc, char** argv)
 
 	int* max = new int;
 	int* dev_max;
+
+	// OPTIMIZATION######################################
+	
+
+	//cudaHostAlloc(&result, sizeof(unsigned char) * _img_w * _img_h * 4, cudaHostAllocMapped);
+	//cudaHostRegister(&result, sizeof(unsigned char) * _img_w * _img_h * 4, cudaHostRegisterDefault);
+	//
+	//cudaHostAlloc(&bw_image, sizeof(unsigned char) * _img_w * _img_h * 4, cudaHostAllocMapped);
+	//cudaHostRegister(&bw_image, sizeof(unsigned char) * _img_w * _img_h * 4, cudaHostRegisterDefault);
+	//
+	//cudaHostAlloc(&accum, sizeof(unsigned int) * w_accum * h_accum, cudaHostAllocMapped);
+	//cudaHostRegister(&accum, sizeof(unsigned int) * w_accum * h_accum, cudaHostRegisterDefault);
+	//
+	//cudaHostAlloc(&image_accum, sizeof(unsigned char) * w_accum * h_accum * 4, cudaHostAllocMapped);
+	//cudaHostRegister(&image_accum, sizeof(unsigned char) * w_accum * h_accum * 4, cudaHostRegisterDefault);
+	//
+	//cudaHostAlloc(&points, sizeof(int) * 4, cudaHostAllocMapped);
+	//cudaHostRegister(&points, sizeof(int) * 4, cudaHostRegisterDefault);
+	//
+	//cudaHostAlloc(&max, sizeof(int), cudaHostAllocMapped);
+	//cudaHostRegister(&max, sizeof(int), cudaHostRegisterDefault);
+	
+	// OPTIMIZATION######################################*/
+	
 
 	cudaMalloc((void**)&dev_result, _img_h * _img_w * 4 * sizeof(unsigned char));
 
@@ -80,7 +107,8 @@ int main(int argc, char** argv)
 	dim3 blockDim = dim3(BLOCKDIM, BLOCKDIM, 1);
 	dim3 gridDim = dim3((N + BLOCKDIM - 1) / BLOCKDIM, (N + BLOCKDIM - 1) / BLOCKDIM, 1);
 
-	
+	std::cout << "BLOCK: " << BLOCKDIM << std::endl;
+	std::cout << "GRID : " << (N + BLOCKDIM - 1) / BLOCKDIM << std::endl;
 	
 	cudaMemcpy(dev_result, result_temp, _img_w * _img_h * 4 * sizeof(unsigned char), cudaMemcpyHostToDevice);
 
@@ -90,18 +118,25 @@ int main(int argc, char** argv)
 
 	// ALGORITHM
 	int threshlod = 20;
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+
+
+	cudaEventRecord(start); //-------------------------------------------START
+
 	computeAccum << <gridDim, blockDim >> > (dev_result, dev_bw_image, dev_accum, _img_w, _img_h, w_accum, h_accum, hough_h); // count the accum image
 	for (int i = 0; i < number_of_lines; i++) {
 		cudaMemset(dev_max, -999999, sizeof(int));
 		findMaxInAccum << <gridDim, blockDim >> > (dev_accum, w_accum, h_accum, dev_points, dev_max);
 
-		if (i == 0) {
-			drawAccum << <gridDim, blockDim >> > (dev_accum, dev_image_accum, w_accum, h_accum, dev_max);
-			cudaMemcpy(image_accum, dev_image_accum, w_accum * h_accum * 4 * sizeof(unsigned char), cudaMemcpyDeviceToHost);
-			char* accum_name = "0_accum.png";
-			accum_name[0] = '0' + i;
-			writeRGBImageToFile(accum_name, image_accum, w_accum, h_accum);
-		}
+		//if (i == 0) {
+		//	drawAccum << <gridDim, blockDim >> > (dev_accum, dev_image_accum, w_accum, h_accum, dev_max);
+		//	cudaMemcpy(image_accum, dev_image_accum, w_accum * h_accum * 4 * sizeof(unsigned char), cudaMemcpyDeviceToHost);
+		//	char* accum_name = "0_accum.png";
+		//	accum_name[0] = '0' + i;
+		//	writeRGBImageToFile(accum_name, image_accum, w_accum, h_accum);
+		//}
 		
 		getLineFromAccum << <gridDim, blockDim >> > (dev_accum, w_accum, h_accum, dev_points, dev_max);
 
@@ -119,6 +154,9 @@ int main(int argc, char** argv)
 		x1 = y1 = x2 = y2 = 0;
 		int x = points[0];
 		int y = points[1];
+
+		std::cout << "x " << x << std::endl;
+		std::cout << "y " << y << std::endl;
 
 		if (x >= 45 && x <= 135)
 		{
@@ -146,9 +184,9 @@ int main(int argc, char** argv)
 			r -= 20;
 		}
 
-		cudaMemcpy(dev_points, points, 4 * sizeof(int), cudaMemcpyHostToDevice);
-		plotLines << <gridDim, blockDim >> > (dev_result, _img_w, _img_h, dev_points, b, g, r);
-		plotLines << <gridDim, blockDim >> > (dev_bw_image, _img_w, _img_h, dev_points, b, g, r);
+		// cudaMemcpy(dev_points, points, 4 * sizeof(int), cudaMemcpyHostToDevice);
+		// plotLines << <gridDim, blockDim >> > (dev_result, _img_w, _img_h, dev_points, b, g, r);
+		// plotLines << <gridDim, blockDim >> > (dev_bw_image, _img_w, _img_h, dev_points, b, g, r);
 
 		
 
@@ -157,6 +195,11 @@ int main(int argc, char** argv)
 		}
 		std::cout << "\n";
 	}
+
+	cudaEventRecord(stop); // ---------------------------------------------STOP
+	cudaEventSynchronize(stop);
+	float milliseconds = 0;
+	cudaEventElapsedTime(&milliseconds, start, stop);
 
 	// WRITE OUT STUFF
 	cudaMemcpy(result, dev_result, _img_h * _img_w * 4 * sizeof(unsigned char), cudaMemcpyDeviceToHost);
@@ -184,9 +227,9 @@ int main(int argc, char** argv)
 		myfile<< ";"<< std::endl;
 	}
 	myfile.close();
-	// ------------------
-
-
+	cout << "TIME: " << milliseconds << endl;
+	cout << "SIZE: " << N << endl;
+	cout << "hough: " << hough_h << endl;
 
 	return 0;
 }
@@ -235,8 +278,8 @@ __global__ void getLineFromAccum(unsigned int* accum, int w_accum, int h_accum, 
 
 	int temp_max;
 	if (max[0] == (int)accum[tid]) {
-		atomicExch(&dev_points[0], x);
-		atomicExch(&dev_points[1], y);
+		dev_points[0] = x;
+		dev_points[1] = y;
 		// DELETE THE LINE FROM ACCU
 		
 		int filter_size = 30;
@@ -250,16 +293,6 @@ __global__ void getLineFromAccum(unsigned int* accum, int w_accum, int h_accum, 
 		}
 
 	}
-	
-	//atomicExch(&temp_max, max[0]);
-	//
-	//atomicCAS(&max[0], (int)accum[tid], x);
-	//atomicExch(&dev_points[0], max[0]);
-	//atomicExch(&max[0], temp_max);
-	//
-	//atomicCAS(&max[0], (int)accum[tid], y);
-	//atomicExch(&dev_points[1], max[0]);
-	//atomicExch(&max[0], temp_max);
 
 	return;
 }
@@ -280,14 +313,9 @@ __global__ void findMaxInAccum(unsigned int* accum, int w_accum, int h_accum, in
 
 	if (old == max[0]) {
 	
-	
 		atomicExch(&dev_points[0], x);
 		atomicExch(&dev_points[1], y);
-	
-		//dev_points[0] = x1;
-		//dev_points[1] = y1;
-		//dev_points[2] = x2;
-		//dev_points[3] = y2;
+
 	}
 
 	return;
@@ -306,7 +334,7 @@ __global__ void computeAccum(unsigned char* result, unsigned char* bw_image, uns
     double center_x = w / 2;
     double center_y = h / 2;
 
-	if (result[tid * 4] > 128 && result[tid * 4 + 1]  > 128 && result[tid * 4 + 2] > 128 && result[tid * 4 + 3] > 128) {
+	if (result[tid * 4] > 128 && result[tid * 4 + 1]  > 128 && result[tid * 4 + 2] > 128) {
 		
 		for (int t = 0; t < 180; t++) {
 			double r = (((double)x - center_x) * cos((double)t * DEG2RAD)) + (((double)y - center_y) * sin((double)t * DEG2RAD));

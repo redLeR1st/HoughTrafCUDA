@@ -1,6 +1,6 @@
 function  [accum] = main( I, num_of_lines )
     close all;
-    
+   % 
     DEG2RAD = 3.14159265358979323846/180;
     %//#define N           512
     %#define BLOCKDIM    16

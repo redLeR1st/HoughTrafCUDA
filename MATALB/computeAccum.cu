@@ -1,7 +1,7 @@
 
 
 
-
+// Accum
 #define M_PI 3.14159265358979323846   // pi
 #define DEG2RAD (M_PI/180.0f)
 __global__ void computeAccum(unsigned char* result, unsigned char* bw_image, unsigned int* accum, int w, int h, int w_accum, int h_accum, double hough_h)

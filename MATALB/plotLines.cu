@@ -1,3 +1,4 @@
+//
 __global__ void plotLines(unsigned char* result, int w, int h, int* points, unsigned char blue, unsigned char green, unsigned char read) {
 
 	int x = blockDim.x * blockIdx.x + threadIdx.x;

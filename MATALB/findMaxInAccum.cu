@@ -1,3 +1,5 @@
+
+//MAx
 __global__ void findMaxInAccum(unsigned int* accum, int w_accum, int h_accum, int* dev_points, int* max)
 {
 

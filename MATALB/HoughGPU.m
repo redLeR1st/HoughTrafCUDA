@@ -1,5 +1,5 @@
 close all;
-
+%
 im = imread('input\input_128.png');
 
 im = gpuArray(im);

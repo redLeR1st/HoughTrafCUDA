@@ -2,7 +2,7 @@ img = imread('input\input_2048.png');
 close all;
     [h, w, ~] = size(img);
 
-img = gpuArray(img);
+%img = gpuArray(img);
 
 tic
 BW = rgb2gray(img);

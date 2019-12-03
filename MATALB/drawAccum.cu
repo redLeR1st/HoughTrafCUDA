@@ -1,3 +1,5 @@
+
+// draw ACC
 __global__ void drawAccum(unsigned int* accum, unsigned char* image_accum, int w_accum, int h_accum, int* max) {
 	int x = blockDim.x * blockIdx.x + threadIdx.x;
 	int y = blockDim.y * blockIdx.y + threadIdx.y;

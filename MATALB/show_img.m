@@ -1,3 +1,4 @@
+%%
 function reshaped = show_img( A, h, w, d )
     
     if d == 0

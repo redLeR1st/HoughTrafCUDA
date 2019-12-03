@@ -1,3 +1,4 @@
+//
 __global__ void getLineFromAccum(unsigned int* accum, int w_accum, int h_accum, int* dev_points, int* max) {
 	int x = blockDim.x * blockIdx.x + threadIdx.x;
 	int y = blockDim.y * blockIdx.y + threadIdx.y;
